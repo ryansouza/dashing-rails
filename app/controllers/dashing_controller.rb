@@ -1,4 +1,5 @@
 class DashingController < ActionController::Base
+  include ActionController::Live
   layout nil
 
   def index
@@ -8,17 +9,21 @@ class DashingController < ActionController::Base
   end
 
   def events
-    response.headers['Content-Type'] = 'text/event-stream;charset=utf-8'
+    response.headers["Content-Type"] = "text/event-stream"
 
-    out = []
+    begin
+      loop do
+        out = Dashing.histories.map { |id,event| "data: #{event.to_json}\n\n" }
 
-    out << "retry: 1000\n\n"
+        response.stream.write out.join("")
 
-    Dashing.histories.each do |id,event|
-      out << "data: #{event.to_json}\n\n"
+        sleep 1
+      end
+    rescue IOError
+      logger.info 'Stream closed'
+    ensure
+      response.stream.close
     end
-
-    render text: out.join("")
   end
 
   def dashboard
